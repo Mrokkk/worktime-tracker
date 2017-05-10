@@ -10,25 +10,35 @@ import datetime
 DB_FILE = os.path.expanduser('~') + '/.worktime'
 REQUIRED_WORKTIME_PER_DAY = 8.0
 
-def print_summary(full_worktime, size, delta):
+def print_summary(full_worktime, days_of_work, delta):
     print('Summary:')
-    print('  per day:', '{0:.2f}'.format(full_worktime / size), 'h')
-    print('  delta:', '{0:.2f}'.format(delta), 'h')
+    print('  days of work:', days_of_work)
+    print('  worktime per day:', '{0:.2f}'.format(full_worktime / days_of_work), 'h')
+    print('  worktime delta:', '{0:.2f}'.format(delta), 'h')
 
-def print_entry(entry):
-    print(datetime.datetime.fromtimestamp(float(entry['timestamp'])
-        ).strftime('%Y-%m-%d %H:%M:%S'), ': logged', entry['worktime'], 'h')
+def print_entry(timestamp, worktime):
+    print(timestamp.strftime('%Y-%m-%d %H:%M:%S'), ': logged', worktime, 'h')
 
 def show_log(data, show_pre_entry=True):
-    full_worktime, delta = 0, 0
-    size = len(data['data'])
+    full_worktime, days_of_work, delta = 0, 0, 0
+    last_entry = None
+    last_timestamp = 0.0
     for entry in data['data']:
+        timestamp = float(entry['timestamp'])
+        date = datetime.datetime.fromtimestamp(timestamp)
         entry_value = float(entry['worktime'])
         full_worktime += entry_value
-        delta += entry_value - REQUIRED_WORKTIME_PER_DAY
+        old = datetime.datetime.fromtimestamp(last_timestamp)
+        diff = datetime.timedelta(days=date.day) - datetime.timedelta(days=old.day)
+        if diff.days:
+            days_of_work += 1
+            delta += entry_value - REQUIRED_WORKTIME_PER_DAY
+        else:
+            delta += entry_value
         if (show_pre_entry):
-            print_entry(entry)
-    print_summary(full_worktime, size, delta)
+            print_entry(date, entry_value)
+        last_timestamp = timestamp
+    print_summary(full_worktime, days_of_work, delta)
 
 def show(args):
     data = read_db() if os.path.exists(DB_FILE) else {"data": []}
