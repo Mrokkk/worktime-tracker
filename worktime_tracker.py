@@ -8,34 +8,31 @@ import argparse
 import datetime
 
 DB_FILE = os.path.expanduser('~') + '/.worktime'
+REQUIRED_WORKTIME_PER_DAY = 8.0
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--time', type=int, help='Log worktime')
-    parser.add_argument('-u', '--uptime', help='Log worktime from current uptime', action='store_true')
-    parser.add_argument('-s', '--summary', help='Show log summary', action='store_true')
-    parser.add_argument('-l', '--log', help='Show log', action='store_true')
-    return parser.parse_args()
+def print_summary(full_worktime, size, delta):
+    print('Summary:')
+    print('  per day:', '{0:.2f}'.format(full_worktime / size), 'h')
+    print('  delta:', '{0:.2f}'.format(delta), 'h')
 
-def show_summary(data):
+def print_entry(entry):
+    print(datetime.datetime.fromtimestamp(float(entry['timestamp'])
+        ).strftime('%Y-%m-%d %H:%M:%S'), ': logged', entry['worktime'], 'h')
+
+def show_log(data, show_pre_entry=True):
     full_worktime, delta = 0, 0
     size = len(data['data'])
     for entry in data['data']:
         entry_value = float(entry['worktime'])
         full_worktime += entry_value
-        delta += entry_value - 8
-    print('Per day: ' + "{0:.2f}".format(full_worktime / size) + ' h')
-    print('Delta: ' + "{0:.2f}".format(delta) + ' h')
+        delta += entry_value - REQUIRED_WORKTIME_PER_DAY
+        if (show_pre_entry):
+            print_entry(entry)
+    print_summary(full_worktime, size, delta)
 
-def show_log(data):
-    full_worktime = 0
-    size = len(data['data'])
-    for entry in data['data']:
-        full_worktime += float(entry['worktime'])
-        print(datetime.datetime.fromtimestamp(float(entry['timestamp'])
-            ).strftime('%Y-%m-%d %H:%M:%S') + ' : logged ' + entry['worktime'] + ' h')
-    print('Full worktime: ' + "{0:.2f}".format(full_worktime) + ' h')
-    print('Per day: ' + "{0:.2f}".format(full_worktime / size) + ' h')
+def show(args):
+    data = read_db() if os.path.exists(DB_FILE) else {"data": []}
+    show_log(data, args.full)
 
 def read_db():
     with open(DB_FILE, 'r') as db_file:
@@ -50,17 +47,36 @@ def add_worktime(data, worktime):
     with open(DB_FILE, 'w+') as db_file:
         json.dump(data, db_file)
 
-def main():
-    os.umask(0o077)
-    args = parse_args()
+def add(args):
+    if not args.time and not args.uptime:
+        print('No worktime given')
+        return
     worktime = read_uptime() if args.uptime else args.time
     data = read_db() if os.path.exists(DB_FILE) else {"data": []}
-    if (args.log):
-        show_log(data)
-    elif (args.summary):
-        show_summary(data)
-    else:
-        add_worktime(data, worktime)
+    add_worktime(data, worktime)
+
+def add_show_command(subparsers):
+    parser_show = subparsers.add_parser('show')
+    parser_show.add_argument('-f', '--full', help='Show full log', action='store_true')
+    parser_show.set_defaults(func=show)
+
+def add_add_command(subparsers):
+    parser_add = subparsers.add_parser('add')
+    parser_add.add_argument('time', nargs='?', type=float, default=0.0, help='Worktime in hours')
+    parser_add.add_argument('-u', '--uptime', action='store_true', help='Log worktime from current uptime')
+    parser_add.set_defaults(func=add)
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(help='subcommand help')
+    add_show_command(subparsers)
+    add_add_command(subparsers)
+    args = parser.parse_args()
+    args.func(args)
+
+def main():
+    os.umask(0o077)
+    parse_args()
 
 if __name__ == "__main__":
     main()
