@@ -61,7 +61,10 @@ def add(args):
     if not args.time and not args.uptime:
         print('No worktime given')
         return
-    worktime = read_uptime() if args.uptime else args.time
+    if args.time:
+        splitted = args.time.split('h')
+        time = int(splitted[0]) + round(int(splitted[1]) / 60, 2)
+    worktime = read_uptime() if args.uptime else time
     data = read_db() if os.path.exists(DB_FILE) else {"data": []}
     add_worktime(data, worktime)
 
@@ -72,7 +75,7 @@ def add_show_command(subparsers):
 
 def add_add_command(subparsers):
     parser_add = subparsers.add_parser('add')
-    parser_add.add_argument('time', nargs='?', type=float, default=0.0, help='Worktime in hours')
+    parser_add.add_argument('time', nargs='?', type=str, help='Worktime in hours (format HhM)')
     parser_add.add_argument('-u', '--uptime', action='store_true', help='Log worktime from current uptime')
     parser_add.set_defaults(func=add)
 
