@@ -11,7 +11,7 @@ DB_FILE = os.path.expanduser('~') + '/.worktime'
 REQUIRED_WORKTIME_PER_DAY = 8.0
 
 def convert_minutes(time):
-    hours, minutes = int(time / 60), int(abs(time) % 60)
+    hours, minutes = int(abs(time) / 60), int(abs(time) % 60)
     return '{}{:02d}h{:02d}'.format('-' if time < 0 else '', hours, minutes)
 
 def print_summary(full_worktime, days_of_work, delta):
@@ -27,15 +27,15 @@ def show_log(data, show_pre_entry=True):
     full_worktime, delta = 0, 0
     for days_of_work, entry in enumerate(data['data'], start=1):
         date = datetime.datetime.fromtimestamp(float(entry['timestamp']))
-        entry_value = int(entry['worktime'])
+        entry_value = entry['worktime']
         full_worktime += entry_value
         delta += entry_value - REQUIRED_WORKTIME_PER_DAY * 60
-        if (show_pre_entry):
+        if show_pre_entry:
             print_entry(date, entry_value)
     print_summary(full_worktime, days_of_work, delta)
 
 def show(args):
-    data = read_db() if os.path.exists(DB_FILE) else {"data": []}
+    data = read_db() if os.path.exists(DB_FILE) else {'data': []}
     show_log(data, args.full)
 
 def read_db():
@@ -46,15 +46,22 @@ def read_uptime():
     with open('/proc/uptime', 'r') as f:
         return float(f.readline().split()[0]) / 60
 
-def add_worktime(data, worktime):
-    current_day = time.strftime('%x')
+def last_entry_has_the_same_day(data, current_day):
     try:
         last_day = data['data'][-1]['day']
         if current_day == last_day:
-            data['data'][-1]['worktime'] += worktime
-            pass
+            return True
     except:
-        data["data"].append({'worktime': worktime, 'timestamp': str(time.time()), 'day': current_day})
+        return False
+
+def add_worktime(data, worktime):
+    current_day = time.strftime('%x')
+    current_timestamp = str(time.time())
+    if last_entry_has_the_same_day(data, current_day):
+        data['data'][-1]['worktime'] += worktime
+        data['data'][-1]['timestamp'] = current_timestamp
+    else:
+        data['data'].append({'worktime': worktime, 'timestamp': current_timestamp, 'day': current_day})
     with open(DB_FILE, 'w+') as db_file:
         json.dump(data, db_file)
 
@@ -91,3 +98,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
